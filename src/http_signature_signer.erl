@@ -11,6 +11,7 @@
 -module(http_signature_signer).
 
 -include("http_signature.hrl").
+-include("http_signature_signer.hrl").
 
 -callback algorithm(Secret) -> http_signature:algorithm()
 	when
@@ -63,13 +64,6 @@
 -export([sign/3]).
 -export([to_verifier/1]).
 -export([verify/3]).
-
--record(http_signature_signer, {
-	key_id = undefined :: undefined | iodata(),
-	module = undefined :: undefined | module(),
-	secret = undefined :: undefined | http_signature:secret(),
-	signer = undefined :: undefined | http_signature:algorithm()
-}).
 
 -define(DEFAULT_SIGNER_MODULE, http_signature_private_key).
 

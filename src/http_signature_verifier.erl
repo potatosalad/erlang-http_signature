@@ -11,6 +11,8 @@
 -module(http_signature_verifier).
 
 -include("http_signature.hrl").
+-include("http_signature_signer.hrl").
+-include("http_signature_verifier.hrl").
 
 -callback public_decode(PublicData) -> Public
 	when
@@ -30,6 +32,7 @@
 %% API
 -export([from_data/1]).
 -export([from_file/1]).
+-export([from_signer/1]).
 -export([to_data/1]).
 -export([to_file/2]).
 
@@ -37,11 +40,6 @@
 -export([module/1]).
 -export([public/1]).
 -export([verify/4]).
-
--record(http_signature_verifier, {
-	module = undefined :: undefined | module(),
-	public = undefined :: undefined | http_signature:public()
-}).
 
 -define(DEFAULT_VERIFIER_MODULE, http_signature_public_key).
 
@@ -69,6 +67,9 @@ from_file({Module, PublicFile}) ->
 	end;
 from_file(PublicFile) ->
 	from_file({?DEFAULT_VERIFIER_MODULE, PublicFile}).
+
+from_signer(Signer= #http_signature_signer{}) ->
+	http_signature_signer:to_verifier(Signer).
 
 to_data(#http_signature_verifier{module=Module, public=Public}) ->
 	{Module, Module:public_encode(Public)}.
