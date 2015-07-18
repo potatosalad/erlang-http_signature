@@ -44,7 +44,7 @@ Result = http_signature:sign_request(get, <<"/path">>, #{}, [{key_id, <<"my-key-
 
 %% You can also store the key_id directly on the signer:
 KeyedSigner = http_signature_signer:key_id(<<"my-key-id">>, Signer),
-Result = http_signature:sign_request(get, <<"/path">>, #{}, [], KeyedSigner),
+KeyedResult = http_signature:sign_request(get, <<"/path">>, #{}, [], KeyedSigner),
 
 %% The following two lines are effectively the same:
 Verifier = http_signature_signer:to_verifier(Signer),
@@ -52,6 +52,9 @@ VerifierFromFile = http_signature_verifier:from_file("test_rsa.pub"),
 
 %% {Method, Path, Headers} are returned from http_signature:sign_request/5
 {Method, Path, Headers} = Result,
+
+%% Here's what the Headers now look like:
+#{<<"authorization">> := <<"Signature keyId=\"my-key-id\",algorithm=\"rsa-sha256\",signature=\"Y1iuKoOasY4imseyj5dpHvTNJ4j6Aic5UuJn4i2r0iFnKDFKk1ya7PaUNP85tdv5zoeLTZn+A32U7v9NFnFl3/iw+R0SLhHzwm7/tssTteYsKyYVv+8WKsz6tjUXLMowAi6fI0JhztVt3YTtOvMhdSVJCRkWUkJqPsJbfS2bcsI5lrtn/AP5rPG1C7fyf63VRkuXWJ+NyruJNLOUIgCiNNEH2+ZnSrXgZf986EBzY9Xagjj+GStn3UvlnohsiPesioLQxCWDWXDEL9vD9bOfhDjLzZQN+G/fTsQCwhhhS5smVr4KiKzMKPsd6xbTnBRUX3gCfYWRIt27nCqsHOf3ug==\"">>, <<"date">> := <<"Sat, 18 Jul 2015 00:16:25 GMT">>} = Headers,
 
 %% We can use these values to verify the signature stored in Headers
 true = http_signature:verify_request(Method, Path, Headers, [], Verifier).
