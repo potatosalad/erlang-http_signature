@@ -10,4 +10,4 @@ notifications:
 
 script:
   - "make tests"
-  - "mix test --trace"
+  # - "mix test --trace"
