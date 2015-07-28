@@ -1,7 +1,7 @@
 http_signature
 ==============
 
-[![Build Status](https://travis-ci.org/potatosalad/erlang-http_signature.png?branch=master)](https://travis-ci.org/potatosalad/erlang-http_signature)
+[![Build Status](https://travis-ci.org/potatosalad/erlang-http_signature.png?branch=master)](https://travis-ci.org/potatosalad/erlang-http_signature) [![Hex.pm](https://img.shields.io/hexpm/v/http_signature.svg)](https://hex.pm/packages/http_signature)
 
 Erlang and Elixir implementations of Joyent's HTTP Signature Scheme
 
@@ -85,5 +85,5 @@ verifier = HTTPSignature.Verifier.from_file("test_rsa.pub")
 %{"authorization" => "Signature keyId=\"my-key-id\",algorithm=\"rsa-sha256\",signature=\"eLiKGL6DaLQoha57xy8KAtCVzihw0h+hVVkyY0oNxaG4Nx/AfeM6/f/BNQP7aWKExWzkjs9w2bbTdtz9r+1A7YSkoCmEuSRCGE7N7AyyULWM1k7W1nZsceVL0uVyMt7ZF23aklf5CBuCYEa7DIot4wf6ekhaEqd+Z0rHr6VGFidyHxaYUTFHtzMLIbm37uXeI52FBNIJPQpceu0SY1Mf+pZyuk8c28P1UDZi3EJV4vgFcUUSClszTRSUYBw1cerEbqm0vN+q7thgvXE+jJXWkXCdUqi9lBDblruF9aUBtINaSwbr3UB4tXS4LMZFKxMfPF/LmYBdcjZE95l884DrRg==\"", "date" => "Sun, 19 Jul 2015 00:05:13 GMT"} = headers
 
 # We can use these values to verify the signature stored in headers
-true = HTTPSignature.verify_request(method, path, headers, [], verifier).
+true = HTTPSignature.verify_request(method, path, headers, [], verifier)
 ```
