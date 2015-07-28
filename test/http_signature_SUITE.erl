@@ -74,7 +74,7 @@ sign_and_verify_all({KeyType, HashTypes}) ->
 sign_and_verify_one({KeyType, HashType}) ->
 	ct:log("[~p] ~p~n", [sign_and_verify, {KeyType, HashType}]),
 	{SignerSecret, SignerSecretData} = make_secret(KeyType),
-	{VerifierPublic, VerifierPublicData} = make_public(KeyType, SignerSecret),
+	{_VerifierPublic, VerifierPublicData} = make_public(KeyType, SignerSecret),
 	SignerModule = signer_module(KeyType),
 	VerifierModule = verifier_module(KeyType),
 	Signer = http_signature_signer:from_data({SignerModule, SignerSecretData}),
