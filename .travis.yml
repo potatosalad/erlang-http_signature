@@ -1,13 +1,28 @@
-language: erlang
+language: generic
 
-sudo: false
+sudo: required
 
-otp_release:
-  - 18.0
+services:
+  - docker
 
 notifications:
   email: false
 
+env:
+  - OTP_VERSION=20.1 ELIXIR_VERSION=1.5.2
+
+cache:
+  directories:
+    - docker-otp-20.1-elixir-1.5.2
+
+before_install:
+  -
+    if [ -e "docker-otp-${OTP_VERSION}-elixir-${ELIXIR_VERSION}/image.tar" ]; then
+      docker load -i "docker-otp-${OTP_VERSION}-elixir-${ELIXIR_VERSION}/image.tar";
+    else
+      docker build -t docker-otp-${OTP_VERSION}-elixir-${ELIXIR_VERSION} -f priv/Dockerfile.otp-${OTP_VERSION}-elixir-${ELIXIR_VERSION} priv;
+      mkdir -p "docker-otp-${OTP_VERSION}-elixir-${ELIXIR_VERSION}"; docker save -o "docker-otp-${OTP_VERSION}-elixir-${ELIXIR_VERSION}/image.tar" docker-otp-${OTP_VERSION}-elixir-${ELIXIR_VERSION};
+    fi
+
 script:
-  - "make tests"
-  - "make triq"
+  - docker run --rm -v `pwd`:/build/http_signature docker-otp-${OTP_VERSION}-elixir-${ELIXIR_VERSION} /bin/bash -c 'cd http_signature && mix deps.get && mix test && rm -rf _build deps ebin && make tests'

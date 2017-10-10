@@ -2,95 +2,99 @@
 %% vim: ts=4 sw=4 ft=erlang noet
 %%%-------------------------------------------------------------------
 %%% @author Andrew Bennett <andrew@pixid.com>
-%%% @copyright 2014-2015, Andrew Bennett
+%%% @copyright 2014-2017, Andrew Bennett
 %%% @doc
 %%%
 %%% @end
-%%% Created :  16 Jul 2015 by Andrew Bennett <andrew@pixid.com>
+%%% Created :  06 Oct 2017 by Andrew Bennett <andrew@pixid.com>
 %%%-------------------------------------------------------------------
 -module(http_signature_verifier).
 
--include("http_signature.hrl").
--include("http_signature_signer.hrl").
--include("http_signature_verifier.hrl").
+%% Types
+-type t() :: #{
+	'__struct__' := ?MODULE,
+	algorithms := ordsets:ordset(binary()),
+	headers := [binary()],
+	key := http_signature_key:public() | http_signature_key:shared()
+}.
 
--callback public_decode(PublicData) -> Public
-	when
-		PublicData :: iodata(),
-		Public     :: http_signature:public().
--callback public_encode(Public) -> PublicData
-	when
-		PublicData :: iodata(),
-		Public     :: http_signature:public().
--callback verify(Message, HashType, Signature, Public) -> boolean()
-	when
-		Message    :: iodata(),
-		HashType   :: http_signature_algorithm:hash_type(),
-		Signature  :: iodata(),
-		Public     :: http_signature:public().
+-export_type([t/0]).
 
+%% Elixir API
+-export(['__struct__'/0]).
+-export(['__struct__'/1]).
 %% API
--export([from_data/1]).
--export([from_file/1]).
--export([from_signer/1]).
--export([to_data/1]).
--export([to_file/2]).
-
-%% Verifier API
--export([module/1]).
--export([public/1]).
+-export([new/1]).
+-export([new/2]).
+-export([new/3]).
+-export([validate/2]).
 -export([verify/4]).
 
--define(DEFAULT_VERIFIER_MODULE, http_signature_public_key).
+%%%===================================================================
+%%% Elixir API functions
+%%%===================================================================
 
-%%====================================================================
-%% API functions
-%%====================================================================
+'__struct__'() ->
+	#{
+		'__struct__' => ?MODULE,
+		algorithms => nil,
+		headers => nil,
+		key => nil
+	}.
 
-from_data({Module, PublicData}) ->
-	Public = Module:public_decode(PublicData),
-	#http_signature_verifier{
-		module = Module,
-		public = Public
-	};
-from_data(PublicData) when is_binary(PublicData) ->
-	from_data({?DEFAULT_VERIFIER_MODULE, PublicData});
-from_data(Verifier=#http_signature_verifier{}) ->
-	Verifier.
+'__struct__'(List) when is_list(List) ->
+	'__struct__'(maps:from_list(List));
+'__struct__'(Map) when is_map(Map) ->
+	maps:fold(fun maps:update/3, '__struct__'(), Map).
 
-from_file({Module, PublicFile}) ->
-	case file:read_file(PublicFile) of
-		{ok, PublicData} ->
-			from_data({Module, PublicData});
-		ReadError ->
-			erlang:error({badarg, ReadError})
-	end;
-from_file(PublicFile) ->
-	from_file({?DEFAULT_VERIFIER_MODULE, PublicFile}).
+%%%===================================================================
+%%% API functions
+%%%===================================================================
 
-from_signer(Signer= #http_signature_signer{}) ->
-	http_signature_signer:to_verifier(Signer).
+new(Key=#{ '__struct__' := http_signature_key }) ->
+	Algorithm = http_signature_key:default_sign_algorithm(Key),
+	new(Key, [Algorithm]).
 
-to_data(#http_signature_verifier{module=Module, public=Public}) ->
-	{Module, Module:public_encode(Public)}.
+new(Key=#{ '__struct__' := http_signature_key }, Algorithms) when is_list(Algorithms) ->
+	new(Key, Algorithms, []).
 
-to_file(PublicFile, Verifier=#http_signature_verifier{}) ->
-	{_, PublicData} = to_data(Verifier),
-	file:write_file(PublicFile, PublicData).
+new(Key=#{ '__struct__' := http_signature_key }, Algorithms, Headers) when is_list(Algorithms) andalso is_list(Headers) ->
+	PublicOrSharedKey =
+		case Key of
+			#{ public := false, shared := true } ->
+				Key;
+			#{ public := false, shared := false } ->
+				http_signature_key:to_public(Key);
+			#{ public := true } ->
+				Key
+		end,
+	'__struct__'(#{ key => PublicOrSharedKey, algorithms => ordsets:from_list(Algorithms), headers => ordsets:from_list(Headers) }).
 
-%%====================================================================
-%% Verifier API functions
-%%====================================================================
+validate(#{ '__struct__' := ?MODULE, headers := [<<"date">>] }, []) ->
+	true;
+validate(#{ '__struct__' := ?MODULE, headers := RequiredHeaders }, HeadersParameter) when is_list(HeadersParameter) ->
+	Headers = maps:from_list([{Header, []} || Header <- HeadersParameter]),
+	validate_required(RequiredHeaders, Headers).
 
-module(#http_signature_verifier{module=Module}) ->
-	Module.
-
-public(#http_signature_verifier{public=Public}) ->
-	Public.
-
-verify(Message, Algorithm, Signature, #http_signature_verifier{module=Module, public=Public}) ->
-	Module:verify(Message, http_signature_algorithm:hash_type(Algorithm), Signature, Public).
+verify(#{ '__struct__' := ?MODULE, key := Key, algorithms := Algorithms }, Algorithm, Signature, Message) ->
+	case ordsets:is_element(Algorithm, Algorithms) of
+		true ->
+			http_signature_key:verify(Key, Algorithm, Signature, Message);
+		false ->
+			false
+	end.
 
 %%%-------------------------------------------------------------------
 %%% Internal functions
 %%%-------------------------------------------------------------------
+
+%% @private
+validate_required([Key | Keys], Headers) ->
+	case maps:is_key(Key, Headers) of
+		true ->
+			validate_required(Keys, Headers);
+		false ->
+			false
+	end;
+validate_required([], _Headers) ->
+	true.

@@ -2,169 +2,79 @@
 %% vim: ts=4 sw=4 ft=erlang noet
 %%%-------------------------------------------------------------------
 %%% @author Andrew Bennett <andrew@pixid.com>
-%%% @copyright 2014-2015, Andrew Bennett
+%%% @copyright 2014-2017, Andrew Bennett
 %%% @doc
 %%%
 %%% @end
-%%% Created :  16 Jul 2015 by Andrew Bennett <andrew@pixid.com>
+%%% Created :  08 Aug 2017 by Andrew Bennett <andrew@pixid.com>
 %%%-------------------------------------------------------------------
 -module(http_signature_signer).
 
--include("http_signature.hrl").
--include("http_signature_signer.hrl").
+%% Types
+-type t() :: #{
+	'__struct__' := ?MODULE,
+	algorithm := binary(),
+	headers := [binary()],
+	key := http_signature_key:secret() | http_signature_key:shared()
+}.
 
--callback algorithm(Secret) -> http_signature:algorithm()
-	when
-		Secret :: http_signature:secret().
--callback decode(SecretData) -> Secret
-	when
-		SecretData :: iodata(),
-		Secret     :: http_signature:secret().
--callback decrypt(SecretPass, SecretData) -> Secret
-	when
-		SecretData :: iodata(),
-		SecretPass :: iodata(),
-		Secret     :: http_signature:secret().
--callback encode(Secret) -> SecretData
-	when
-		SecretData :: iodata(),
-		Secret     :: http_signature:secret().
--callback encrypt(SecretPass, Secret) -> SecretData
-	when
-		SecretData :: iodata(),
-		SecretPass :: iodata(),
-		Secret     :: http_signature:secret().
--callback sign(Message, HashType, Secret) -> binary()
-	when
-		Message  :: iodata(),
-		HashType :: http_signature_algorithm:hash_type(),
-		Secret   :: http_signature:secret().
--callback to_verifier(Secret) -> http_signature:public()
-	when
-		Secret :: http_signature:secret().
+-export_type([t/0]).
 
+%% Elixir API
+-export(['__struct__'/0]).
+-export(['__struct__'/1]).
 %% API
--export([from_data/1]).
--export([from_data/2]).
--export([from_file/1]).
--export([from_file/2]).
--export([to_data/1]).
--export([to_data/2]).
--export([to_file/2]).
--export([to_file/3]).
-
-%% Signer API
--export([algorithm/1]).
--export([algorithm/2]).
--export([key_id/1]).
--export([key_id/2]).
--export([module/1]).
--export([secret/1]).
+-export([new/1]).
+-export([new/2]).
+-export([new/3]).
 -export([sign/2]).
--export([sign/3]).
+-export([verify/4]).
 -export([to_verifier/1]).
--export([verify/3]).
 
--define(DEFAULT_SIGNER_MODULE, http_signature_private_key).
+%%%===================================================================
+%%% Elixir API functions
+%%%===================================================================
 
-%%====================================================================
-%% API functions
-%%====================================================================
+'__struct__'() ->
+	#{
+		'__struct__' => ?MODULE,
+		algorithm => nil,
+		headers => nil,
+		key => nil
+	}.
 
-from_data({Module, SecretData}) ->
-	Secret = Module:decode(SecretData),
-	Signer = Module:algorithm(Secret),
-	#http_signature_signer{
-		module = Module,
-		secret = Secret,
-		signer = Signer
-	};
-from_data(SecretData) when is_binary(SecretData) ->
-	from_data({?DEFAULT_SIGNER_MODULE, SecretData});
-from_data(Signer=#http_signature_signer{}) ->
-	Signer.
+'__struct__'(List) when is_list(List) ->
+	'__struct__'(maps:from_list(List));
+'__struct__'(Map) when is_map(Map) ->
+	maps:fold(fun maps:update/3, '__struct__'(), Map).
 
-from_data(SecretPass, {Module, SecretData}) ->
-	Secret = Module:decrypt(SecretPass, SecretData),
-	Signer = Module:algorithm(Secret),
-	#http_signature_signer{
-		module = Module,
-		secret = Secret,
-		signer = Signer
-	};
-from_data(SecretPass, SecretData) when is_binary(SecretData) ->
-	from_data(SecretPass, {?DEFAULT_SIGNER_MODULE, SecretData});
-from_data(_SecretPass, Signer=#http_signature_signer{}) ->
-	Signer.
+%%%===================================================================
+%%% API functions
+%%%===================================================================
 
-from_file({Module, SecretFile}) ->
-	case file:read_file(SecretFile) of
-		{ok, SecretData} ->
-			from_data({Module, SecretData});
-		ReadError ->
-			erlang:error({badarg, ReadError})
-	end;
-from_file(SecretFile) ->
-	from_file({?DEFAULT_SIGNER_MODULE, SecretFile}).
+new(Key=#{ '__struct__' := http_signature_key }) ->
+	Algorithm = http_signature_key:default_sign_algorithm(Key),
+	new(Key, Algorithm).
 
-from_file(SecretPass, {Module, SecretFile}) ->
-	case file:read_file(SecretFile) of
-		{ok, SecretData} ->
-			from_data(SecretPass, {Module, SecretData});
-		ReadError ->
-			erlang:error({badarg, ReadError})
-	end;
-from_file(SecretPass, SecretFile) ->
-	from_file(SecretPass, {?DEFAULT_SIGNER_MODULE, SecretFile}).
+new(Key=#{ '__struct__' := http_signature_key }, Algorithm) ->
+	new(Key, Algorithm, []).
 
-to_data(#http_signature_signer{module=Module, secret=Secret}) ->
-	{Module, Module:encode(Secret)}.
+new(Key=#{ '__struct__' := http_signature_key }, Algorithm, Headers) ->
+	% Verify that we can sign and verify with this key and algorithm.
+	Message = crypto:strong_rand_bytes(16),
+	Signature = http_signature_key:sign(Key, Algorithm, Message),
+	true = http_signature_key:verify(Key, Algorithm, Signature, Message),
+	'__struct__'(#{ key => Key, algorithm => Algorithm, headers => Headers }).
 
-to_data(SecretPass, #http_signature_signer{module=Module, secret=Secret}) ->
-	{Module, Module:encrypt(SecretPass, Secret)}.
+sign(#{ '__struct__' := ?MODULE, key := Key, algorithm := Algorithm }, Message) ->
+	http_signature_key:sign(Key, Algorithm, Message).
 
-to_file(SecretFile, Signer=#http_signature_signer{}) ->
-	{_, SecretData} = to_data(Signer),
-	file:write_file(SecretFile, SecretData).
-
-to_file(SecretPass, SecretFile, Signer=#http_signature_signer{}) ->
-	{_, SecretData} = to_data(SecretPass, Signer),
-	file:write_file(SecretFile, SecretData).
-
-%%====================================================================
-%% Signer API functions
-%%====================================================================
-
-algorithm(#http_signature_signer{signer=Algorithm}) ->
-	Algorithm.
-
-algorithm(Algorithm, Signer=#http_signature_signer{}) ->
-	Signer#http_signature_signer{signer=http_signature_algorithm:normalize(Algorithm)}.
-
-key_id(#http_signature_signer{key_id=KeyId}) ->
-	KeyId.
-
-key_id(KeyId, Signer=#http_signature_signer{}) ->
-	Signer#http_signature_signer{key_id=KeyId}.
-
-module(#http_signature_signer{module=Module}) ->
-	Module.
-
-secret(#http_signature_signer{secret=Secret}) ->
-	Secret.
-
-sign(Message, Signer=#http_signature_signer{signer=Algorithm}) ->
-	sign(Message, Algorithm, Signer).
-
-sign(Message, Algorithm, #http_signature_signer{module=Module, secret=Secret}) ->
-	Module:sign(Message, http_signature_algorithm:hash_type(Algorithm), Secret).
-
-to_verifier(#http_signature_signer{module=Module, secret=Secret}) ->
-	Module:to_verifier(Secret).
-
-verify(Message, Signature, Signer=#http_signature_signer{signer={_, HashType}}) ->
+verify(Signer=#{ '__struct__' := ?MODULE }, Algorithm, Signature, Message) ->
 	Verifier = to_verifier(Signer),
-	http_signature_verifier:verify(Message, HashType, Signature, Verifier).
+	http_signature_verifier:verify(Verifier, Algorithm, Signature, Message).
+
+to_verifier(#{ '__struct__' := ?MODULE, key := Key, algorithm := Algorithm, headers := Headers }) ->
+	http_signature_verifier:new(Key, [Algorithm], Headers).
 
 %%%-------------------------------------------------------------------
 %%% Internal functions

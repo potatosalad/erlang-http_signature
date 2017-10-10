@@ -2,109 +2,92 @@
 %% vim: ts=4 sw=4 ft=erlang noet
 %%%-------------------------------------------------------------------
 %%% @author Andrew Bennett <andrew@pixid.com>
-%%% @copyright 2014-2015, Andrew Bennett
+%%% @copyright 2014-2017, Andrew Bennett
 %%% @doc
 %%%
 %%% @end
-%%% Created :  16 Jul 2015 by Andrew Bennett <andrew@pixid.com>
+%%% Created :  07 Oct 2017 by Andrew Bennett <andrew@pixid.com>
 %%%-------------------------------------------------------------------
 -module(http_signature_hmac).
--behaviour(http_signature_signer).
--behaviour(http_signature_verifier).
+-behaviour(http_signature_algorithm).
 
--include("http_signature.hrl").
+-include("http_signature_utils.hrl").
 
-%% http_signature_signer callbacks
--export([algorithm/1]).
--export([decode/1]).
--export([decrypt/2]).
--export([encode/1]).
--export([encrypt/2]).
+%% http_signature_algorithm callbacks
+-export([default_sign_algorithm/1]).
+-export([generate_key/1]).
 -export([sign/3]).
--export([to_verifier/1]).
-
-%% http_signature_verifier callbacks
--export([public_decode/1]).
--export([public_encode/1]).
+-export([ssh_hostkey_fingerprint/2]).
 -export([verify/4]).
 
--record(http_signature_hmac, {
-	key = undefined :: undefined | iodata()
-}).
+%% Macros
+-define(INLINE_INT2HEX(Int),
+	case Int of
+		0 -> $0;
+		1 -> $1;
+		2 -> $2;
+		3 -> $3;
+		4 -> $4;
+		5 -> $5;
+		6 -> $6;
+		7 -> $7;
+		8 -> $8;
+		9 -> $9;
+		10 -> $a;
+		11 -> $b;
+		12 -> $c;
+		13 -> $d;
+		14 -> $e;
+		15 -> $f
+	end).
 
--type public() :: #http_signature_hmac{}.
--type secret() :: #http_signature_hmac{}.
+-define(INLINE_BIN2HEX_BC(Bin),
+	<< <<
+		?INLINE_INT2HEX(I div 16),
+		?INLINE_INT2HEX(I rem 16)
+	>> || << I >> <= Bin >>).
 
--export_type([public/0]).
--export_type([secret/0]).
+-define(INLINE_FINGERPRINT_BC(Bin),
+	<< <<
+		$:,
+		?INLINE_INT2HEX(I div 16),
+		?INLINE_INT2HEX(I rem 16)
+	>> || << I >> <= Bin >>).
 
-%%====================================================================
-%% http_signature_signer callbacks
-%%====================================================================
+%%%===================================================================
+%%% http_signature_algorithm callbacks
+%%%===================================================================
 
-algorithm(#http_signature_hmac{}) ->
-	{hmac, sha256}.
+default_sign_algorithm({hmac, _}) ->
+	<<"hmac-sha256">>.
 
-decode(SecretData) ->
-	#http_signature_hmac{key=SecretData}.
+generate_key(ByteSize) when is_integer(ByteSize) andalso ByteSize >= 0 ->
+	{hmac, crypto:strong_rand_bytes(ByteSize)};
+generate_key(Key) when is_binary(Key) ->
+	generate_key(byte_size(Key)).
 
-decrypt(SecretPass, << IV:16/binary, EncryptedData/binary >>) ->
-	SecretKey = crypto:hash(md5, SecretPass),
-	PaddedData = crypto:block_decrypt(aes_cbc128, SecretKey, IV, EncryptedData),
-	SecretData = unpad(PaddedData),
-	#http_signature_hmac{key=SecretData}.
+sign({hmac, Secret}, Algorithm, Message) ->
+	DigestType = algorithm_to_digest_type(Algorithm),
+	crypto:hmac(DigestType, Secret, Message).
 
-encode(#http_signature_hmac{key=SecretData}) ->
-	SecretData.
+ssh_hostkey_fingerprint({hmac, Secret}, []) ->
+	?INLINE_FINGERPRINT_BC(crypto:hash(md5, Secret)).
 
-encrypt(SecretPass, #http_signature_hmac{key=SecretData}) ->
-	SecretKey = crypto:hash(md5, SecretPass),
-	IV = crypto:rand_bytes(16),
-	PaddedData = pad(SecretData),
-	EncryptedData = crypto:block_encrypt(aes_cbc128, SecretKey, IV, PaddedData),
-	<< IV/binary, EncryptedData/binary >>.
-
-sign(Message, HashType, #http_signature_hmac{key=Key}) ->
-	crypto:hmac(HashType, Key, Message).
-
-to_verifier(#http_signature_hmac{key=PublicData}) ->
-	http_signature_verifier:from_data({http_signature_hmac, PublicData}).
-
-%%====================================================================
-%% http_signature_verifier callbacks
-%%====================================================================
-
-public_decode(PublicData) ->
-	#http_signature_hmac{key=PublicData}.
-
-public_encode(#http_signature_hmac{key=PublicData}) ->
-	PublicData.
-
-verify(Message, HashType, Signature, HMAC=#http_signature_hmac{}) ->
-	http_signature:constant_time_compare(Signature, sign(Message, HashType, HMAC)).
+verify({hmac, Secret}, Algorithm, Signature, Message) ->
+	Challenge = sign({hmac, Secret}, Algorithm, Message),
+	http_signature:constant_time_compare(Challenge, Signature).
 
 %%%-------------------------------------------------------------------
 %%% Internal functions
 %%%-------------------------------------------------------------------
 
 %% @private
-pad(Bin) ->
-	Extra = 16 - (byte_size(Bin) rem 16),
-	pad(Extra, Bin).
-
-%% @private
-pad(0, Bin) ->
-	<< Bin/binary, (crypto:rand_bytes(15))/binary, 0 >>;
-pad(N, Bin) ->
-	<< Bin/binary, (crypto:rand_bytes(N - 1))/binary, N >>.
-
-%% @private
-unpad(Bin) ->
-	Size = byte_size(Bin),
-	Len = case binary:last(Bin) of
-		0 ->
-			Size - 16;
-		Pad ->
-			Size - Pad
-	end,
-	binary:part(Bin, 0, Len).
+algorithm_to_digest_type(Algorithm) ->
+	case Algorithm of
+		<<"hmac-sha1">> -> sha;
+		<<"hmac-sha224">> -> sha224;
+		<<"hmac-sha256">> -> sha256;
+		<<"hmac-sha384">> -> sha384;
+		<<"hmac-sha512">> -> sha512;
+		_ -> ?http_signature_throw({bad_algorithm, Algorithm}, "Bad algorithm for HMAC key: ~s", [Algorithm])
+	end.

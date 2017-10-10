@@ -1,0 +1,10 @@
+FROM bitwalker/alpine-elixir:1.5.2
+
+RUN apk add --no-cache autoconf bash build-base make openssl
+
+ENV MIX_ENV=test TERM=xterm
+
+RUN mix local.hex --force && mix local.rebar --force
+
+RUN mkdir /build
+WORKDIR /build

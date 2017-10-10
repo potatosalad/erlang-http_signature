@@ -2,14 +2,17 @@
 %% vim: ts=4 sw=4 ft=erlang noet
 %%%-------------------------------------------------------------------
 %%% @author Andrew Bennett <andrew@pixid.com>
-%%% @copyright 2014-2015, Andrew Bennett
+%%% @copyright 2014-2017, Andrew Bennett
 %%% @doc
 %%%
 %%% @end
-%%% Created :  16 Jul 2015 by Andrew Bennett <andrew@pixid.com>
+%%% Created :  07 Oct 2017 by Andrew Bennett <andrew@pixid.com>
 %%%-------------------------------------------------------------------
 
--ifndef(HTTP_SIGNATURE_HRL).
+-ifndef(HTTP_SIGNATURE_UTILS_HRL).
+
+-define(http_signature_throw(Tag, Format, Arguments),
+	erlang:throw({Tag, erlang:iolist_to_binary(io_lib:format(Format, Arguments))})).
 
 %% INLINE_LOWERCASE_BC(Bin)
 %%
@@ -46,6 +49,6 @@
 		C -> C
 	end >> || << C >> <= Bin >>).
 
--define(HTTP_SIGNATURE_HRL, 1).
+-define(HTTP_SIGNATURE_UTILS_HRL, 1).
 
 -endif.
