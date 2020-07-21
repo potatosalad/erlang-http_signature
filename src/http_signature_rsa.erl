@@ -35,8 +35,7 @@ generate_key(crypto, ModulusSize, ExponentSize)
 		RSAPrivateKey = #'RSAPrivateKey'{} = public_key:generate_key({rsa, ModulusSize, ExponentSize}),
 		{ok, RSAPrivateKey}
 	catch
-		Class:Reason ->
-			Stacktrace = erlang:get_stacktrace(),
+		Class:Reason:Stacktrace ->
 			{error, {Class, Reason, Stacktrace}}
 	end;
 generate_key(cutkey, ModulusSize, ExponentSize)
@@ -52,8 +51,7 @@ generate_key(cutkey, ModulusSize, ExponentSize)
 				erlang:error(CutkeyError)
 		end
 	catch
-		Class:Reason ->
-			Stacktrace = erlang:get_stacktrace(),
+		Class:Reason:Stacktrace ->
 			{error, {Class, Reason, Stacktrace}}
 	end;
 generate_key(openssl_genpkey, ModulusSize, ExponentSize)
@@ -80,8 +78,7 @@ generate_key(openssl_genpkey, ModulusSize, ExponentSize)
 				erlang:error(OpensslError)
 		end
 	catch
-		Class:Reason ->
-			Stacktrace = erlang:get_stacktrace(),
+		Class:Reason:Stacktrace ->
 			{error, {Class, Reason, Stacktrace}}
 	end;
 generate_key(openssl_genrsa, ModulusSize, ExponentSize)
@@ -110,8 +107,7 @@ generate_key(openssl_genrsa, ModulusSize, ExponentSize)
 				erlang:error(OpensslError)
 		end
 	catch
-		Class:Reason ->
-			Stacktrace = erlang:get_stacktrace(),
+		Class:Reason:Stacktrace ->
 			{error, {Class, Reason, Stacktrace}}
 	end.
 

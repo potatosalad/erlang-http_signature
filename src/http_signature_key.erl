@@ -214,8 +214,7 @@ decode_data(Data) ->
 	try
 		decode_pem(Data)
 	catch
-		Class:Reason ->
-			ST = erlang:get_stacktrace(),
+		Class:Reason:ST ->
 			try
 				decode_ssh(Data)
 			catch

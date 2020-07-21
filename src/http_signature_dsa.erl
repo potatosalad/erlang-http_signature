@@ -53,8 +53,7 @@ generate_key(openssl_dsaparam, Params) ->
 				erlang:error(OpensslError)
 		end
 	catch
-		Class:Reason ->
-			Stacktrace = erlang:get_stacktrace(),
+		Class:Reason:Stacktrace ->
 			{error, {Class, Reason, Stacktrace}}
 	end.
 
