@@ -9,11 +9,11 @@ notifications:
   email: false
 
 env:
-  - OTP_VERSION=20.1 ELIXIR_VERSION=1.5.2
+  - OTP_VERSION=22.0.4 ELIXIR_VERSION=1.9.0
 
 cache:
   directories:
-    - docker-otp-20.1-elixir-1.5.2
+    - docker-otp-22.0.4-elixir-1.9.0
 
 before_install:
   -
